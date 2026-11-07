@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Подземелье: Сердце</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050509;color:#fff;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+#wrap{height:100%;display:flex;align-items:center;justify-content:center;padding:10px}
+#game{width:min(960px,100vw);height:min(640px,calc(100dvh - 20px));background:#08080d;border:3px solid #eee;position:relative;display:flex;flex-direction:column;box-shadow:0 0 35px #45366b55}
+#top{height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:2px solid #eee;font-size:13px;color:#ddd}
+#stage{flex:1;min-height:0;position:relative;background:radial-gradient(ellipse at 50% 45%,#19172a,#08080d 72%);overflow:hidden}
+canvas{width:100%;height:100%;display:block;image-rendering:pixelated}
+#bottom{min-height:150px;border-top:3px solid #eee;padding:12px 16px 10px;background:#07070b}
+#dialogue{font-size:clamp(14px,2vw,19px);line-height:1.5;min-height:54px;white-space:pre-wrap}
+#choices{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}
+button{font:700 16px ui-monospace,monospace;color:#ffd34f;background:#09090d;border:2px solid #ffd34f;padding:8px 18px;cursor:pointer}
+button:active,button.selected{background:#4b3820}
+#controls{position:absolute;inset:auto 10px 10px 10px;display:none;justify-content:space-between;pointer-events:none}
+.pad{display:grid;grid-template-columns:42px 42px 42px;grid-template-rows:42px 42px 42px;gap:3px;pointer-events:auto}
+.pad button{padding:0;font-size:19px;background:#171725cc;border-color:#aaa;color:#fff;touch-action:none}
+.pad .up{grid-column:2}.pad .left{grid-column:1;grid-row:2}.pad .down{grid-column:2;grid-row:2}.pad .right{grid-column:3;grid-row:2}
+#hint{font-size:11px;color:#999;margin-top:8px}
+@media(max-width:700px){#controls{display:flex}#bottom{min-height:178px;padding:10px 12px}#top{font-size:11px;padding:0 9px}}
+</style>
+</head>
+<body>
+<div id="wrap"><main id="game">
+ <div id="top"><span>ПОДЗЕМЕЛЬЕ: СЕРДЦЕ</span><span id="status">♥ 20/20</span><span id="room">ЗАЛ ЭХА</span></div>
+ <div id="stage"><canvas id="c" width="960" height="520"></canvas>
+  <div id="controls">
+   <div class="pad"><button class="up" data-k="ArrowUp">▲</button><button class="left" data-k="ArrowLeft">◀</button><button class="down" data-k="ArrowDown">▼</button><button class="right" data-k="ArrowRight">▶</button></div>
+   <div class="pad"><button data-k="z">Z</button><button data-k="x">X</button></div>
+  </div>
+ </div>
+ <div id="bottom"><div id="dialogue">Ты находишься глубоко под землёй. Впереди кто-то тихо напевает...</div><div id="choices"></div><div id="hint">Управление: стрелки / WASD · Z — выбрать · X — назад</div></div>
+</main></div>
+<script>
+(()=>{
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const dialogue=document.getElementById('dialogue'),choices=document.getElementById('choices'),status=document.getElementById('status'),room=document.getElementById('room');
+const keys={};let mode='intro',choice=0,hp=20,frame=0,inv=0,bullets=[],heart={x:480,y:350},enemyHp=3,phase=0,ended=false;
+const W=960,H=520;
+function say(t){dialogue.textContent=t}
+function buttons(items){choices.innerHTML='';items.forEach((it,i)=>{let b=document.createElement('button');b.textContent=it[0];b.onclick=it[1];choices.appendChild(b)})}
+function start(){mode='talk';room.textContent='ВСТРЕЧА';say('Перед тобой Фонарик — маленький хранитель пещеры.\\n«Ой! Я думал, сегодня никто не придёт...»');buttons([['ПОГОВОРИТЬ',talk],['ПОЩАДИТЬ',spare],['СРАЗИТЬСЯ',fight]])}
+function talk(){mode='talk2';say('«Здесь темно, но это не значит, что здесь страшно.\\nЯ просто охраняю дорогу домой»');buttons([['ПОГОВОРИТЬ ЕЩЁ',talk2],['ПОЩАДИТЬ',spare],['НАЗАД',start]])}
+function talk2(){say('«Знаешь, мне давно хотелось с кем-нибудь поговорить».\\nФонарик выглядит спокойнее.');buttons([['ПОЩАДИТЬ',spare],['ВЫЗОВ',fight]])}
+function spare(){mode='end';ended=true;room.textContent='МИР';say('Фонарик улыбается и отступает в сторону.\\n«Спасибо, что не стал драться. Счастливого пути!»\\n\\nТы прошёл встречу мирным путём. ♥');buttons([['ИГРАТЬ СНОВА',reset]])}
+function fight(){mode='battle';room.textContent='УКЛОНЯЙСЯ';bullets=[];phase=0;frame=0;heart={x:480,y:355};say('Фонарик зовёт светлячков! Уклоняйся от огоньков.\\nВыдержи несколько волн, чтобы завершить встречу.');buttons([['НАЧАТЬ',()=>{choices.innerHTML='';say('Двигай сердечко и избегай светящихся шариков!')}]])}
+function reset(){hp=20;enemyHp=3;ended=false;mode='intro';room.textContent='ЗАЛ ЭХА';status.textContent='♥ 20/20';bullets=[];say('Ты находишься глубоко под землёй. Впереди кто-то тихо напевает...');buttons([['НАЧАТЬ',start]])}
+function spawn(){let side=Math.floor(Math.random()*4),x=side===0?80:side===1?880:Math.random()*800+80,y=side===2?230:side===3?465:Math.random()*220+245;let dx=heart.x-x,dy=heart.y-y,len=Math.hypot(dx,dy)||1;let sp=1.7+Math.random()*1.1;bullets.push({x,y,vx:dx/len*sp,vy:dy/len*sp,r:8+Math.random()*3})}
+function draw(){
+ ctx.clearRect(0,0,W,H);
+ // distant cave crystals
+ for(let i=0;i<16;i++){let x=(i*71+30)%W;ctx.fillStyle=i%2?'#242044':'#202b3b';ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x+12,35+(i%4)*12);ctx.lineTo(x+24,0);ctx.fill()}
+ if(mode==='intro'||mode==='talk'||mode==='talk2'||mode==='end'){
+  // original lantern creature
+  ctx.save();ctx.translate(480,255);
+  ctx.shadowBlur=28;ctx.shadowColor='#ffd36a';ctx.fillStyle='#ffcf66';ctx.beginPath();ctx.arc(0,0,54,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+  ctx.fillStyle='#493b50';ctx.beginPath();ctx.ellipse(-18,-7,6,10,0,0,Math.PI*2);ctx.ellipse(18,-7,6,10,0,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#493b50';ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,12,15,.2,Math.PI-.2);ctx.stroke();
+  ctx.fillStyle='#fff2bd';ctx.beginPath();ctx.arc(-15,-12,2,0,7);ctx.arc(21,-12,2,0,7);ctx.fill();
+  ctx.restore();
+  ctx.fillStyle='#b8a9d6';ctx.font='20px monospace';ctx.textAlign='center';ctx.fillText('✦',390,150);ctx.fillText('✧',570,180);
+ } else if(mode==='battle'){
+  ctx.strokeStyle='#fff';ctx.lineWidth=4;ctx.strokeRect(250,225,460,245);
+  // enemy above arena
+  ctx.fillStyle='#ffd36a';ctx.shadowBlur=22;ctx.shadowColor='#ffd36a';ctx.beginPath();ctx.arc(480,130,32,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+  ctx.fillStyle='#493b50';ctx.beginPath();ctx.arc(470,125,4,0,7);ctx.arc(490,125,4,0,7);ctx.fill();
+  // heart
+  ctx.save();ctx.translate(heart.x,heart.y);ctx.fillStyle='#ff3155';ctx.shadowBlur=inv?0:12;ctx.shadowColor='#ff3155';
+  ctx.beginPath();ctx.moveTo(0,10);ctx.bezierCurveTo(-34,-10,-19,-28,0,-12);ctx.bezierCurveTo(19,-28,34,-10,0,10);ctx.fill();ctx.restore();
+  for(const b of bullets){ctx.fillStyle='#ffe18a';ctx.shadowBlur=12;ctx.shadowColor='#ffbd4a';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0}
+  ctx.fillStyle='#aaa';ctx.font='15px monospace';ctx.textAlign='center';ctx.fillText('СЕРДЦЕ — ТВОЯ ДУША',480,505);
+ }
+}
+function update(){
+ frame++;
+ if(mode==='battle'&&!ended){
+  let dx=0,dy=0;if(keys.ArrowLeft||keys.a)dx--;if(keys.ArrowRight||keys.d)dx++;if(keys.ArrowUp||keys.w)dy--;if(keys.ArrowDown||keys.s)dy++;
+  const l=Math.hypot(dx,dy)||1;heart.x+=dx/l*3.5;heart.y+=dy/l*3.5;heart.x=Math.max(265,Math.min(695,heart.x));heart.y=Math.max(240,Math.min(455,heart.y));
+  if(frame%36===0)spawn();
+  bullets.forEach(b=>{b.x+=b.vx;b.y+=b.vy});
+  bullets=bullets.filter(b=>b.x>235&&b.x<725&&b.y>210&&b.y<485);
+  if(inv>0)inv--;
+  for(const b of bullets){if(inv===0&&Math.hypot(b.x-heart.x,b.y-heart.y)<b.r+9){hp=Math.max(0,hp-2);inv=50;status.textContent='♥ '+hp+'/20';}}
+  if(frame>540){mode='end';ended=true;room.textContent='МИР';say('Ты ловко уклонялся от огоньков! Фонарик впечатлён.\\n«Вот это ловкость! Думаю, нам лучше стать друзьями»');buttons([['ПОЩАДИТЬ',spare],['СЫГРАТЬ СНОВА',reset]])}
+  if(hp===0){mode='end';ended=true;say('Сердечко устало. Ничего страшного — попробуй ещё раз!');buttons([['ПОПРОБОВАТЬ СНОВА',reset]])}
+ }
+ draw();requestAnimationFrame(update);
+}
+addEventListener('keydown',e=>{keys[e.key]=true;keys[e.key.toLowerCase()]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();if(e.key.toLowerCase()==='z'&&mode==='intro')start();if(e.key.toLowerCase()==='x'&&mode==='battle')say('Продолжай уклоняться!')});
+addEventListener('keyup',e=>{keys[e.key]=false;keys[e.key.toLowerCase()]=false});
+document.querySelectorAll('[data-k]').forEach(b=>{let k=b.dataset.k;b.addEventListener('pointerdown',e=>{e.preventDefault();keys[k]=true;keys[k.toLowerCase()]=true});['pointerup','pointercancel','pointerleave'].forEach(ev=>b.addEventListener(ev,()=>{keys[k]=false;keys[k.toLowerCase()]=false}))});
+buttons([['НАЧАТЬ',start]]);update();
+})();
+</script>
+</body></html>
